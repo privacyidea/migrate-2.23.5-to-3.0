@@ -5,13 +5,39 @@ Tools to offline migrate privacyIDEA 2.23.5 to privacyIDEA 3.0
 see https://github.com/privacyidea/privacyidea/issues/2040
 
 In contrast to privacyIDEA 2.23.5 privacyIDEA 3.0 now stores the user assignments
-in the database table "tokenowner".
-While the migration scripts take care of this, in setups with tens of thousands
-of users, this could take quite a time.
-These tools are ment to prepare the database schema and the data in the database
-so that the update of the software runs faster.
+in the database table "tokenowner" which will give us a greater flexibility in
+future to assign tokens to users.
 
-The migrations would be done in two steps:
+The following table explains the change of token assignment:
+
+| table ``tokenowner`` in 3.0 | Corresponding database field in 2.23 | Comment |
+| --------------------------- | ------------------------------------ | ------- |
+| ``tokenowner.id`` |  | primary key, auto increment |
+| ``tokenowner.token_id`` |  ``token.id`` | The reference to the ``token`` table |
+| ``tokenowner.resolver`` | ``token.resolver`` |  |
+| ``tokenowner.user_id`` | ``token.user_id`` |  |
+| ``tokenowner.realm_id`` | ``tokenrealm.realm_id`` | We take the Corresponding value from the table ``tokenrealm`` |
+
+So the database columns ``token.resolver`` and ``token.user_id`` are migrated
+and the column ``token.resolver_type`` is not used anymore.
+
+The original database migration script privacyidea/migrations/versions/48ee74b8a7c8_.py,
+that is shipped with the privacyIDEA 3.x code, takes care of creating
+the new table and migrating the data.
+
+The postinst script of the install packages are running this migration scripts in
+the packages postinst scripts.
+
+However, due to additional business logic in the migration script, this takes a few
+minutes per 1000 users. **Thus upgrading privacyIDEA with tens of thousands of
+assigned tokens with this normal upgrade/migration script can take up to several
+hours!**.
+
+The tools in this very repository are ment to prepare the database schema and
+the data in the database so that the update of privacyIDEA can run without
+interupting normal operations for hours.
+
+Now, the migrations would be done in several steps:
 
 ## Step 1: Update Schema
 
@@ -31,6 +57,12 @@ This way the old code (2.23.5) can still run with this database.
 
 At this point no data has been migrated. Nothing has changed, we only added
 a database table and some columns.
+
+However, the database schema version is already set to ``849170064430`` which
+sould be reflected in the database table ``alembic_version``. This is the schema
+version of privacyIDEA 3.0 with the migrated token assignments.
+
+You are still running privacyIDEA 2.23.5!
 
 ## Step 2: Migrating the data
 
@@ -58,8 +90,12 @@ that have not been assigned, yet.
 ## Step 3: Update privacyIDEA
 
 Now privacyIDEA can be updated to version >= 3.2.x.
+
+You can do this using the normal update mechanism via ``apt`` or ``yum``.
+
 At this point, the alembic_version of the schema should ensure,
-that the normal update procedure does not run the migration script again.
+that the normal update procedure does not run the migration script for the
+token assignment again. It will rather add all subsequent database changes.
 
 ## Step 4: Remove old columns
 
